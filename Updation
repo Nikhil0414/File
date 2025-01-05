@@ -1,0 +1,322 @@
+class Admin_ReferralProgram(models.Model):
+    partner_name = models.CharField(max_length=200)
+    email = models.EmailField()
+    code = models.CharField(max_length=20, default='DEFAULT_CODE')  # Add default value
+    referral_count = models.PositiveIntegerField(default=0)
+    total_bonus_earned = models.PositiveIntegerField(default=0)
+
+
+    def __str__(self):
+        return self.partner_name
+
+
+
+
+
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Referral Details</title>
+    <link rel="stylesheet" href="{% static 'css/admin_marketing_promotion_referal.css' %}">
+</head>
+<body>
+
+
+<!-- Container that contains "statics boxes" STARTS-->
+<h2 id="referral-details-heading">REFERRALS PROGRAM INFO</h2>
+    <!-- Table Section STARTS -->
+     <div class="sort-continer">
+        <p>Sort By : </p>
+        <select id="sortSelect" onchange="sortTable()">
+            <option class="sort-option" value="default">Default</option>
+            <option class="sort-option" value="referral_code">Referral Code</option>
+        </select>
+        <i class="dropdown-icon fa fa-chevron-down"></i>
+     </div>
+<!-- Container that contains "statics boxes" ENDS-->
+
+<!-- Table Section STARTS -->
+<div class="total-row-current-page-container">
+    <div class="current-page">
+        <img src="../static/admin_img/student_management_img/course_enroll_img/home_icon.png" alt="" class="home-icon">
+
+        {% for item in breadcrumb %}
+            <img src="../static/admin_img/student_management_img/course_enroll_img/page_arrow.png" alt="" class="page-arrow">
+            {% if forloop.first %}
+                <!-- Here the Course Name is stored from the breadcrumb -->
+                <p class="current-page-info" id="studentManagement">{{ item }}</p>
+            {% else %}
+                <p class="current-page-info">{{ item }}</p>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="total-rows" id="totalCourses">Total Course Enrollments: {{ total_course_enrollments }}</div>
+</div>
+
+<div class="referralTable-container">
+<table id="referralTable">
+    <thead>
+        <tr>
+            <th>S.No</th>
+            <th>Partner Name</th>
+            <th>Email</th>
+            <th>Referral Code</th>
+            <th>Referral Count</th>
+            <th>Total Bonus Earned</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for referral in page_obj %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ referral.partner_name }}</td>
+            <td>{{ referral.email }}</td>
+            <td>{{ referral.code }}</td>
+            <td>{{ referral.referral_count }}</td>
+            <td>{{ referral.total_bonus_earned }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5">No referral data available.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Pagination Controls -->
+<div class="pagination">
+    <span>
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    </span>
+    <div>
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">Previous</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">Next</a>
+        {% endif %}
+    </div>
+</div>
+
+</div>
+
+
+
+</body>
+</html>
+
+
+
+def admin_marketing_promotion_referal(request):
+    # Fetch all referral programs
+    referrals = Admin_ReferralProgram.objects.all()
+
+    # Sort referrals based on query parameter
+    sort_by = request.GET.get('sort', 'default')
+    if sort_by == 'referral_code':
+        referrals = referrals.order_by('partner_name')  # Replace with the appropriate field if needed
+    elif sort_by == 'referral_count':
+        referrals = referrals.order_by('-referral_count')
+
+    # Pagination
+    paginator = Paginator(referrals, 10)  # Show 10 items per page
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    # Context to pass to the template
+    context = {
+        'page_obj': page_obj,  # Paged referral programs
+        'breadcrumb': ['Dashboard', 'Marketing', 'Referral Program'],
+        'total_course_enrollments': referrals.aggregate(total=Sum('referral_count'))['total'] or 0,
+    }
+
+    return render(request, 'admin_marketing_promotion_referal.html', context)
+
+
+
+
+
+
+
+
+———————————————————————
+
+
+
+
+class Admin_Voucher(models.Model):
+    student = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, default=1)
+
+    code = models.CharField(max_length=100, unique=True, help_text="Unique code for the voucher")
+    discount = models.DecimalField(max_digits=10, decimal_places=2,
+                                   help_text="Discount value (percentage or flat amount)")
+    expiration_date = models.DateField(help_text="Expiration date of the voucher", null=True,
+                                       blank=True)  # Make this field optional
+    start_date = models.DateField(help_text="Start date of the voucher", null=True, blank=True)
+    end_date = models.DateField(help_text="End date of the voucher", null=True, blank=True)
+    min_amount = models.DecimalField(max_digits=10, decimal_places=2,
+                                     help_text="Minimum amount for the voucher to be applicable", null=True, blank=True)
+    num_courses = models.PositiveIntegerField(help_text="Number of courses required for the voucher to be applicable",
+                                              null=True, blank=True)
+    courses = models.ManyToManyField('Course', help_text="Courses that this voucher applies to", blank=True)
+    discount_type_choices = [
+        ('flat', 'Flat amount'),
+        ('percentage', 'Percentage with limit'),
+    ]
+    discount_type = models.CharField(max_length=20, choices=discount_type_choices, default='flat')
+    discount_limit = models.DecimalField(max_digits=10, decimal_places=2,
+                                         help_text="Maximum discount limit (for percentage discounts)", null=True,
+                                         blank=True)
+
+    used_count = models.PositiveIntegerField(default=0, help_text="Number of times the voucher has been used")
+    is_active = models.BooleanField(default=True, help_text="Whether the voucher is currently active")
+
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='vouchers',
+                                   help_text="User who created the voucher")
+    created_at = models.DateTimeField(auto_now_add=True, help_text="Creation timestamp")
+    updated_at = models.DateTimeField(auto_now=True, help_text="Last updated timestamp")
+
+    def __str__(self):
+        return f"{self.code} - {self.discount} {'%' if self.discount_type == 'percentage' else ''} off"
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Voucher"
+        verbose_name_plural = "Vouchers"
+
+
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="{% static 'css/admin_marketing_promotion_view_bills.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+
+    <h2 id="view-bills-heading">VIEW BILLS</h2>
+    <!-- Table Section STARTS -->
+     <div class="sort-continer">
+        <p>Sort By : </p>
+        <select id="sortSelect" onchange="sortTable()">
+            <option class="sort-option" value="default">Default</option>
+            <option class="sort-option" value="voucher">Voucher</option>
+        </select>
+        <i class="dropdown-icon fa fa-chevron-down"></i> 
+     </div>
+    <div class="total-row-current-page-container">
+        <div class="current-page" id="current-page2">
+            <img src="../static/admin_img/student_management_img/course_enroll_img/home_icon.png" alt="" class="home-icon">
+
+            {% for item in breadcrumb2 %}
+                <img src="../static/admin_img/student_management_img/course_enroll_img/page_arrow.png" alt="" class="page-arrow">
+                {% if forloop.first %}
+                    <!-- Here the Course Name is stored from the breadcrumb -->
+                    <p class="current-page-info" id="studentManagement">{{ item }}</p>
+                {% else %}
+                    <p class="current-page-info">{{ item }}</p>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <div class="total-rows" id="totalCourses">Total Course Enrollments: {{ total_course_enrollments2 }}</div>
+    </div>
+
+    <div class="referralTable-container">
+        <table id="referralTable2">
+    <thead>
+        <tr>
+            <th>Voucher ID</th>
+            <th>Valid From</th>
+            <th>Valid To</th>
+            <th>Student Name</th>
+            <th>Mail</th>
+            <th>Bill Amount</th>
+            <th><span id="status">Status</span></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for voucher in page_obj %}
+        <tr>
+            <td>{{ voucher.code }}</td>
+            <td>{{ voucher.start_date }}</td>
+            <td>{{ voucher.end_date }}</td>
+            <td>{{ voucher.created_by.get_full_name }}</td>
+            <td>{{ voucher.created_by.email }}</td>
+            <td>{{ voucher.discount }}</td>
+            <td>{{ voucher.is_active|yesno:"Active,Inactive" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7">No vouchers available.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+    </div>
+<div class="pagination" id="pagination2">
+    <div class="select-page">
+        Select by Page No.:
+        <select id="pageSelect2" onchange="changePage2()">
+            {% for page_num in page_obj.paginator.page_range %}
+            <option value="{{ page_num }}" {% if page_obj.number == page_num %}selected{% endif %}>{{ page_num }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div id="currentPage2">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</div>
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&sort={{ request.GET.sort }}">Previous</a>
+    {% endif %}
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&sort={{ request.GET.sort }}">Next</a>
+    {% endif %}
+</div>
+
+</body>
+</html>
+
+
+def admin_marketing_promotion_view_bills(request):
+    # Fetch all voucher data
+    vouchers = Admin_Voucher.objects.all()
+
+    # Sorting
+    sort_by = request.GET.get('sort', 'default')
+    if sort_by == 'voucher':
+        vouchers = vouchers.order_by('code')  # Sort by voucher code
+
+    # Pagination
+    paginator = Paginator(vouchers, 10)  # 10 vouchers per page
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    # Context data for rendering the template
+    context = {
+        'breadcrumb2': ['Dashboard', 'Marketing', 'View Bills'],  # Breadcrumb navigation
+        'total_course_enrollments2': Admin_Enrollment.objects.count(),
+        'page_obj': page_obj,  # Paged voucher data
+        'courses2': list(page_obj.object_list.values()),  # Pass to JavaScript for dynamic rendering
+    }
+
+    return render(request, 'admin_marketing_promotion_view_bills.html', context)
+
+
+
+—————————————————————————————
+
+add these to admin.py
+
+admin.site.register(Admin_ReferralProgram)
+admin.site.register(Admin_Voucher)
+
+
+
